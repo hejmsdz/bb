@@ -39,6 +39,7 @@ type rootModel struct {
 	ignores     model.IgnoresModel
 	autoUpdate  model.AutoUpdateModel
 	whatChanged model.WhatChangedModel
+	mineOnly    model.MineOnlyModel
 	localRepos  map[string]string
 	quitting    bool
 }
@@ -88,7 +89,7 @@ func CopyToClipboard(str string, m rootModel) tea.Cmd {
 func UpdateListView(m *rootModel) {
 	prItems := make([]list.Item, 0)
 	for _, pr := range m.prs.Prs {
-		if m.ignores.IsHidden(pr) {
+		if m.ignores.IsHidden(pr) || m.mineOnly.IsHidden(pr) {
 			continue
 		}
 
@@ -101,6 +102,9 @@ func UpdateListView(m *rootModel) {
 	m.list.SetItems(prItems)
 	if m.list.Cursor() >= len(prItems) {
 		m.list.Select(len(prItems) - 1)
+	}
+	if m.list.Cursor() < 0 {
+		m.list.Select(0)
 	}
 }
 
@@ -130,6 +134,15 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case ".":
 			cmd := m.ignores.ToggleShowIgnored()
+			return m, cmd
+
+		case "m":
+			cmd := m.mineOnly.ToggleShowMineOnly()
+			if m.mineOnly.ShowMineOnly {
+				m.list.Title = "My pull requests"
+			} else {
+				m.list.Title = "Pull requests"
+			}
 			return m, cmd
 		}
 
@@ -197,6 +210,7 @@ func main() {
 		ignores:     model.NewIgnoresModel(),
 		autoUpdate:  model.NewAutoUpdateModel(interval),
 		whatChanged: model.NewWhatChangedModel(),
+		mineOnly:    model.NewMineOnlyModel(),
 		localRepos:  config.LocalRepositoryPaths,
 	}
 
