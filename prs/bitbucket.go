@@ -32,11 +32,16 @@ type bbLinks struct {
 	Html bbLink `json:"html"`
 }
 
+type bbBranch struct {
+	Name string `json:"name"`
+}
+
 type bbCommit struct {
 	Hash string `json:"hash"`
 }
 
 type bbSource struct {
+	Branch bbBranch `json:"branch"`
 	Commit bbCommit `json:"commit"`
 }
 
@@ -107,6 +112,7 @@ var prFieldsStr = strings.Join([]string{
 	"values.comment_count",
 	"values.author.display_name",
 	"values.author.account_id",
+	"values.source.branch.name",
 	"values.source.commit.hash",
 	"values.links.html.href",
 	"values.participants.role",
@@ -127,6 +133,7 @@ func (c BitbucketClient) getPullRequests(repo string) []PullRequest {
 			Title:         bbPr.Title,
 			Author:        bbPr.Author.DisplayName,
 			LastCommit:    bbPr.Source.Commit.Hash,
+			Branch:        bbPr.Source.Branch.Name,
 			CommentsCount: bbPr.CommentCount,
 			Url:           bbPr.Links.Html.Href,
 			IsMine:        bbPr.Author.AccountId == c.config.UserId,

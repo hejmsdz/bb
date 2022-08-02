@@ -18,6 +18,7 @@ type PullRequest struct {
 	Title                 string
 	Author                string
 	LastCommit            string
+	Branch                string
 	IsMine                bool
 	AmIParticipating      bool
 	UpdatedOn             time.Time

@@ -28,6 +28,8 @@ var (
 	approvesStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 	requestedChangesStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	updatesStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
+	statusMessageStyle    = lipgloss.NewStyle().
+				Foreground(lipgloss.AdaptiveColor{Light: "#04B575", Dark: "#04B575"})
 )
 
 type rootModel struct {
@@ -39,6 +41,14 @@ type rootModel struct {
 	quitting    bool
 }
 
+func (m rootModel) Init() tea.Cmd {
+	return tea.Batch(
+		m.prs.Init(),
+		m.ignores.Init(),
+		m.autoUpdate.Init(),
+	)
+}
+
 func OpenBrowser(url string) tea.Cmd {
 	return func() tea.Msg {
 		browser.OpenURL(url)
@@ -46,12 +56,9 @@ func OpenBrowser(url string) tea.Cmd {
 	}
 }
 
-func (m rootModel) Init() tea.Cmd {
-	return tea.Batch(
-		m.prs.Init(),
-		m.ignores.Init(),
-		m.autoUpdate.Init(),
-	)
+func CopyToClipboard(str string, m rootModel) tea.Cmd {
+	clipboard.WriteAll(str)
+	return m.list.NewStatusMessage(statusMessageStyle.Render("Copied '" + str + "' to clipboard"))
 }
 
 func UpdateListView(m *rootModel) {
@@ -97,32 +104,30 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case ".":
 			cmd := m.ignores.ToggleShowIgnored()
 			return m, cmd
+		}
 
+		sel, ok := m.list.SelectedItem().(PullRequestItem)
+		if !ok {
+			return m, nil
+		}
+
+		switch keypress := msg.String(); keypress {
 		case "i":
-			i, ok := m.list.SelectedItem().(PullRequestItem)
-			if ok {
-				cmd := m.ignores.ToggleIgnore(i.Pr)
-				return m, cmd
-			}
+			cmd := m.ignores.ToggleIgnore(sel.Pr)
+			return m, cmd
 
 		case "d":
-			i, ok := m.list.SelectedItem().(PullRequestItem)
-			if ok {
-				cmd := m.whatChanged.DismissChanges(i.Pr)
-				return m, cmd
-			}
+			cmd := m.whatChanged.DismissChanges(sel.Pr)
+			return m, cmd
 
 		case "u":
-			i, ok := m.list.SelectedItem().(PullRequestItem)
-			if ok {
-				clipboard.WriteAll(i.Pr.Url)
-			}
+			return m, CopyToClipboard(sel.Pr.Url, m)
+
+		case "b":
+			return m, CopyToClipboard(sel.Pr.Branch, m)
 
 		case "enter":
-			i, ok := m.list.SelectedItem().(PullRequestItem)
-			if ok {
-				return m, OpenBrowser(i.Pr.Url)
-			}
+			return m, OpenBrowser(sel.Pr.Url)
 		}
 	}
 
@@ -148,7 +153,6 @@ func main() {
 
 	l := list.New(make([]list.Item, 0), model.NewItemDelegate(), defaultWidth, listHeight)
 	l.Title = "Pull requests"
-	l.SetShowStatusBar(false)
 	l.Styles.Title = titleStyle
 	l.Styles.PaginationStyle = paginationStyle
 	l.Styles.HelpStyle = helpStyle
