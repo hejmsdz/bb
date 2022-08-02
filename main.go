@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -93,6 +94,10 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			return m, m.prs.StartLoadingPrs
 
+		case ".":
+			cmd := m.ignores.ToggleShowIgnored()
+			return m, cmd
+
 		case "i":
 			i, ok := m.list.SelectedItem().(PullRequestItem)
 			if ok {
@@ -107,9 +112,11 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 
-		case ".":
-			cmd := m.ignores.ToggleShowIgnored()
-			return m, cmd
+		case "u":
+			i, ok := m.list.SelectedItem().(PullRequestItem)
+			if ok {
+				clipboard.WriteAll(i.Pr.Url)
+			}
 
 		case "enter":
 			i, ok := m.list.SelectedItem().(PullRequestItem)
