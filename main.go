@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -38,6 +39,7 @@ type rootModel struct {
 	ignores     model.IgnoresModel
 	autoUpdate  model.AutoUpdateModel
 	whatChanged model.WhatChangedModel
+	localRepos  map[string]string
 	quitting    bool
 }
 
@@ -58,7 +60,19 @@ func OpenBrowser(url string) tea.Cmd {
 
 func CopyToClipboard(str string, m rootModel) tea.Cmd {
 	clipboard.WriteAll(str)
-	return m.list.NewStatusMessage(statusMessageStyle.Render("Copied '" + str + "' to clipboard"))
+	return m.list.NewStatusMessage(statusMessageStyle.Render("Copied '" + str + "' to clipboard."))
+}
+
+func Checkout(pr prs.PullRequest, m rootModel) tea.Cmd {
+	localDir, exists := m.localRepos[pr.Repo]
+	if !exists {
+		return m.list.NewStatusMessage(statusMessageStyle.Render("Configure local repository path for " + pr.Repo + " first."))
+	}
+	cmd := exec.Command("git", "checkout", pr.Branch)
+	cmd.Dir = localDir
+	outBytes, _ := cmd.CombinedOutput()
+	out := string(outBytes)
+	return m.list.NewStatusMessage(statusMessageStyle.Render(out))
 }
 
 func UpdateListView(m *rootModel) {
@@ -126,6 +140,9 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "b":
 			return m, CopyToClipboard(sel.Pr.Branch, m)
 
+		case "c":
+			return m, Checkout(sel.Pr, m)
+
 		case "enter":
 			return m, OpenBrowser(sel.Pr.Url)
 		}
@@ -163,6 +180,7 @@ func main() {
 		ignores:     model.NewIgnoresModel(),
 		autoUpdate:  model.NewAutoUpdateModel(interval),
 		whatChanged: model.NewWhatChangedModel(),
+		localRepos:  config.LocalRepositoryPaths,
 	}
 
 	if err := tea.NewProgram(m, tea.WithAltScreen()).Start(); err != nil {

@@ -10,6 +10,7 @@ import (
 type Config struct {
 	UpdateIntervalMinutes int
 	Bitbucket             prs.AccountConfig
+	LocalRepositoryPaths  map[string]string
 }
 
 func ReadConfig() Config {
