@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -9,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/hejmsdz/bb/model"
 	"github.com/hejmsdz/bb/prs"
 	"github.com/pkg/browser"
 )
@@ -29,51 +29,13 @@ var (
 	updatesStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
 )
 
-type PullRequestItem struct {
-	Pr        prs.PullRequest
-	PrevState *prs.PullRequest
-	IsIgnored bool
-}
-
-func (i PullRequestItem) Title() string {
-	if i.IsIgnored {
-		return ignoredStyle.Render(i.Pr.Title)
-	}
-	if i.PrevState != nil && i.Pr.UpdatedOn.After(i.PrevState.UpdatedOn) {
-		return fmt.Sprint("🔔 ", i.Pr.Title, " ", updatesStyle.Render(FindUpdatesStr(*i.PrevState, i.Pr)))
-	}
-	return i.Pr.Title
-}
-func (i PullRequestItem) FilterValue() string { return fmt.Sprint(i.Pr.Title, i.Pr.Author) }
-func (i PullRequestItem) Description() string {
-	timeAgo := TimeAgo(i.Pr.UpdatedOn)
-	var myReviewEmoji = ""
-	if i.Pr.MyReview == prs.Approved {
-		myReviewEmoji = " / ✅"
-	} else if i.Pr.MyReview == prs.RequestedChanges {
-		myReviewEmoji = " / 👎"
-	}
-	reviewSummary := fmt.Sprintf("%s / %s%s",
-		approvesStyle.Render(fmt.Sprint(i.Pr.ApprovedCount)),
-		requestedChangesStyle.Render(fmt.Sprint(i.Pr.RequestedChangesCount)),
-		myReviewEmoji,
-	)
-	return fmt.Sprintf("%s | %s | %d 💬 | %s", i.Pr.Author, timeAgo, i.Pr.CommentsCount, reviewSummary)
-}
-
-type ignoredMap map[string]time.Time
-
-type model struct {
-	client      prs.Client
+type rootModel struct {
 	list        list.Model
-	prs         []prs.PullRequest
-	prevPrs     map[string]prs.PullRequest
-	ignored     ignoredMap
+	prs         model.PrsModel
+	ignores     model.IgnoresModel
+	autoUpdate  model.AutoUpdateModel
+	whatChanged model.WhatChangedModel
 	quitting    bool
-	updatedOn   time.Time
-	showIgnored bool
-	ticker      time.Ticker
-	updateIntvl time.Duration
 }
 
 func OpenBrowser(url string) tea.Cmd {
@@ -83,51 +45,40 @@ func OpenBrowser(url string) tea.Cmd {
 	}
 }
 
-func SaveIgnored(ignored ignoredMap) {
-	file, _ := json.MarshalIndent(ignored, "", " ")
-	os.WriteFile("./ignored.json", file, 0644)
-}
-
-func LoadIgnored() ignoredMap {
-	var ignored ignoredMap = make(ignoredMap)
-	ignoredJson, err := os.ReadFile("./ignored.json")
-	if err != nil {
-		return ignored
-	}
-	json.Unmarshal(ignoredJson, &ignored)
-	return ignored
-}
-
-func (m model) Init() tea.Cmd {
+func (m rootModel) Init() tea.Cmd {
 	return tea.Batch(
-		StartLoadingPrs(m),
-		WaitForAutoUpdate(m),
+		m.prs.Init(),
+		m.ignores.Init(),
+		m.autoUpdate.Init(),
 	)
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func UpdateListView(m *rootModel) {
+	prItems := make([]list.Item, 0)
+	for _, pr := range m.prs.Prs {
+		if m.ignores.IsHidden(pr) {
+			continue
+		}
+
+		prItems = append(prItems, PullRequestItem{
+			pr,
+			m.whatChanged.WhatChanged(pr),
+			m.ignores.IsIgnored(pr),
+		})
+	}
+	m.list.SetItems(prItems)
+}
+
+func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h, v := docStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v)
 		return m, nil
 
-	case PrsLoading:
-		cmd := m.list.StartSpinner()
-		return m, tea.Batch(cmd, LoadPrs(m))
-
-	case PrsLoaded:
-		m.list.StopSpinner()
-		for _, oldPr := range m.prs {
-			_, isCached := m.prevPrs[oldPr.Uid()]
-			if !isCached {
-				m.prevPrs[oldPr.Uid()] = oldPr
-			}
-		}
-		m.prs = msg.prs
-		m.updatedOn = msg.updatedOn
-		UpdateVisiblePrsList(&m)
-		return m, WaitForAutoUpdate(m)
+	case model.MsgUpdateListView:
+		UpdateListView(&m)
+		return m, nil
 
 	case tea.KeyMsg:
 		if m.list.FilterState() == list.Filtering {
@@ -140,34 +91,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "r":
-			return m, StartLoadingPrs(m)
+			return m, m.prs.StartLoadingPrs
 
 		case "i":
 			i, ok := m.list.SelectedItem().(PullRequestItem)
 			if ok {
-				uid := i.Pr.Uid()
-				if i.IsIgnored {
-					delete(m.ignored, uid)
-				} else {
-					m.ignored[i.Pr.Uid()] = i.Pr.UpdatedOn
-				}
+				cmd := m.ignores.ToggleIgnore(i.Pr)
+				return m, cmd
 			}
-			go SaveIgnored(m.ignored)
-			UpdateVisiblePrsList(&m)
-			return m, nil
 
 		case "d":
 			i, ok := m.list.SelectedItem().(PullRequestItem)
 			if ok {
-				uid := i.Pr.Uid()
-				m.prevPrs[uid] = i.Pr
+				cmd := m.whatChanged.DismissChanges(i.Pr)
+				return m, cmd
 			}
-			UpdateVisiblePrsList(&m)
-			return m, nil
+
 		case ".":
-			m.showIgnored = !m.showIgnored
-			UpdateVisiblePrsList(&m)
-			return m, nil
+			cmd := m.ignores.ToggleShowIgnored()
+			return m, cmd
 
 		case "enter":
 			i, ok := m.list.SelectedItem().(PullRequestItem)
@@ -177,37 +119,39 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
-	return m, cmd
+	var listCmd, prsCmd, autoUpdateCmd, whatChangedCmd tea.Cmd
+	m.list, listCmd = m.list.Update(msg)
+	m.prs, prsCmd = m.prs.Update(msg)
+	m.autoUpdate, autoUpdateCmd = m.autoUpdate.Update(msg)
+	m.whatChanged, whatChangedCmd = m.whatChanged.Update(msg)
+
+	return m, tea.Batch(listCmd, prsCmd, autoUpdateCmd, whatChangedCmd)
 }
 
-func (m model) View() string {
+func (m rootModel) View() string {
 	return m.list.View()
 }
 
 func main() {
 	config := ReadConfig()
 	c := prs.CreateBitbucketClient(config.Bitbucket)
+	interval := time.Duration(config.UpdateIntervalMinutes) * time.Minute
 
 	const defaultWidth = 20
 
-	l := list.New(make([]list.Item, 0), list.NewDefaultDelegate(), defaultWidth, listHeight)
+	l := list.New(make([]list.Item, 0), model.NewItemDelegate(), defaultWidth, listHeight)
 	l.Title = "Pull requests"
 	l.SetShowStatusBar(false)
 	l.Styles.Title = titleStyle
 	l.Styles.PaginationStyle = paginationStyle
 	l.Styles.HelpStyle = helpStyle
 
-	intvl := time.Duration(config.UpdateIntervalMinutes) * time.Minute
-
-	m := model{
-		client:      c,
+	m := rootModel{
 		list:        l,
-		ignored:     LoadIgnored(),
-		prevPrs:     make(map[string]prs.PullRequest),
-		ticker:      *time.NewTicker(intvl),
-		updateIntvl: intvl,
+		prs:         model.NewPrsModel(c),
+		ignores:     model.NewIgnoresModel(),
+		autoUpdate:  model.NewAutoUpdateModel(interval),
+		whatChanged: model.NewWhatChangedModel(),
 	}
 
 	if err := tea.NewProgram(m, tea.WithAltScreen()).Start(); err != nil {

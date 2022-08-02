@@ -29,6 +29,8 @@ type PullRequest struct {
 	Url                   string
 }
 
-func (pr PullRequest) Uid() string {
+type Uid = string
+
+func (pr PullRequest) Uid() Uid {
 	return fmt.Sprint(pr.Repo, "/", pr.Id)
 }
