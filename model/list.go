@@ -1,6 +1,7 @@
 package model
 
 import (
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -28,6 +29,52 @@ func NewItemDelegate() list.DefaultDelegate {
 		}
 
 		return nil
+	}
+
+	d.FullHelpFunc = func() [][]key.Binding {
+		return [][]key.Binding{{
+			key.NewBinding(
+				key.WithKeys("enter"),
+				key.WithHelp("enter", "open in web browser"),
+			),
+			key.NewBinding(
+				key.WithKeys("d"),
+				key.WithHelp("d", "dismiss bell"),
+			),
+			key.NewBinding(
+				key.WithKeys("i"),
+				key.WithHelp("i", "ignore until next update"),
+			),
+			key.NewBinding(
+				key.WithKeys("u"),
+				key.WithHelp("u", "copy url"),
+			),
+			key.NewBinding(
+				key.WithKeys("b"),
+				key.WithHelp("b", "copy branch"),
+			),
+			key.NewBinding(
+				key.WithKeys("c"),
+				key.WithHelp("c", "checkout locally"),
+			),
+			key.NewBinding(
+				key.WithKeys("P"),
+				key.WithHelp("P", "pull target branch"),
+			),
+		}, {
+			key.NewBinding(
+				key.WithKeys("r"),
+				key.WithHelp("r", "refresh"),
+			),
+			key.NewBinding(
+				key.WithKeys("."),
+				key.WithHelp(".", "show ignored"),
+			),
+			key.NewBinding(
+				key.WithKeys("m"),
+				key.WithHelp("m", "show mine only"),
+			),
+		}}
 	}
 
 	return d
