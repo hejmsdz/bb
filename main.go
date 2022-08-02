@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -29,8 +28,9 @@ var (
 	approvesStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 	requestedChangesStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	updatesStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
-	statusMessageStyle    = lipgloss.NewStyle().
-				Foreground(lipgloss.AdaptiveColor{Light: "#04B575", Dark: "#04B575"})
+	infoToastStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+	successToastStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	errorToastStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 )
 
 type rootModel struct {
@@ -51,6 +51,28 @@ func (m rootModel) Init() tea.Cmd {
 	)
 }
 
+func NewInfoToast(text string) tea.Cmd {
+	return func() tea.Msg {
+		return model.MsgShowToast{Text: text, Style: infoToastStyle}
+	}
+}
+
+func NewToast(text string, isOk bool) tea.Cmd {
+	return func() tea.Msg {
+		style := successToastStyle
+		if !isOk {
+			style = errorToastStyle
+		}
+		return model.MsgShowToast{Text: text, Style: style}
+	}
+}
+
+func NewErrorToast(text string) tea.Cmd {
+	return func() tea.Msg {
+		return model.MsgShowToast{Text: text, Style: errorToastStyle}
+	}
+}
+
 func OpenBrowser(url string) tea.Cmd {
 	return func() tea.Msg {
 		browser.OpenURL(url)
@@ -60,19 +82,7 @@ func OpenBrowser(url string) tea.Cmd {
 
 func CopyToClipboard(str string, m rootModel) tea.Cmd {
 	clipboard.WriteAll(str)
-	return m.list.NewStatusMessage(statusMessageStyle.Render("Copied '" + str + "' to clipboard."))
-}
-
-func Checkout(pr prs.PullRequest, m rootModel) tea.Cmd {
-	localDir, exists := m.localRepos[pr.Repo]
-	if !exists {
-		return m.list.NewStatusMessage(statusMessageStyle.Render("Configure local repository path for " + pr.Repo + " first."))
-	}
-	cmd := exec.Command("git", "checkout", pr.Branch)
-	cmd.Dir = localDir
-	outBytes, _ := cmd.CombinedOutput()
-	out := string(outBytes)
-	return m.list.NewStatusMessage(statusMessageStyle.Render(out))
+	return NewInfoToast("Copied '" + str + "'")
 }
 
 func UpdateListView(m *rootModel) {
@@ -89,6 +99,9 @@ func UpdateListView(m *rootModel) {
 		})
 	}
 	m.list.SetItems(prItems)
+	if m.list.Cursor() >= len(prItems) {
+		m.list.Select(len(prItems) - 1)
+	}
 }
 
 func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -143,6 +156,9 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "c":
 			return m, Checkout(sel.Pr, m)
 
+		case "P":
+			return m, PullOrigin(sel.Pr, m)
+
 		case "enter":
 			return m, OpenBrowser(sel.Pr.Url)
 		}
@@ -170,6 +186,7 @@ func main() {
 
 	l := list.New(make([]list.Item, 0), model.NewItemDelegate(), defaultWidth, listHeight)
 	l.Title = "Pull requests"
+	l.SetShowStatusBar(false)
 	l.Styles.Title = titleStyle
 	l.Styles.PaginationStyle = paginationStyle
 	l.Styles.HelpStyle = helpStyle
