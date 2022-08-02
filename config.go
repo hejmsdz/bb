@@ -4,18 +4,12 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
+	"github.com/hejmsdz/bb/prs"
 )
-
-type AccountConfig struct {
-	Username     string
-	Password     string
-	UserId       string
-	Repositories []string
-}
 
 type Config struct {
 	UpdateIntervalMinutes int
-	Bitbucket             AccountConfig
+	Bitbucket             prs.AccountConfig
 }
 
 func ReadConfig() Config {

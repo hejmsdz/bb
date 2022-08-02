@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/hejmsdz/bb/prs"
 	"github.com/pkg/browser"
 )
 
@@ -29,8 +30,8 @@ var (
 )
 
 type PullRequestItem struct {
-	Pr        PullRequest
-	PrevState *PullRequest
+	Pr        prs.PullRequest
+	PrevState *prs.PullRequest
 	IsIgnored bool
 }
 
@@ -47,9 +48,9 @@ func (i PullRequestItem) FilterValue() string { return fmt.Sprint(i.Pr.Title, i.
 func (i PullRequestItem) Description() string {
 	timeAgo := TimeAgo(i.Pr.UpdatedOn)
 	var myReviewEmoji = ""
-	if i.Pr.MyReview == Approved {
+	if i.Pr.MyReview == prs.Approved {
 		myReviewEmoji = " / ✅"
-	} else if i.Pr.MyReview == RequestedChanges {
+	} else if i.Pr.MyReview == prs.RequestedChanges {
 		myReviewEmoji = " / 👎"
 	}
 	reviewSummary := fmt.Sprintf("%s / %s%s",
@@ -63,10 +64,10 @@ func (i PullRequestItem) Description() string {
 type ignoredMap map[string]time.Time
 
 type model struct {
-	client      BitbucketClient
+	client      prs.Client
 	list        list.Model
-	prs         []PullRequest
-	prevPrs     map[string]PullRequest
+	prs         []prs.PullRequest
+	prevPrs     map[string]prs.PullRequest
 	ignored     ignoredMap
 	quitting    bool
 	updatedOn   time.Time
@@ -187,7 +188,7 @@ func (m model) View() string {
 
 func main() {
 	config := ReadConfig()
-	c := CreateBitbucketClient(config.Bitbucket)
+	c := prs.CreateBitbucketClient(config.Bitbucket)
 
 	const defaultWidth = 20
 
@@ -204,7 +205,7 @@ func main() {
 		client:      c,
 		list:        l,
 		ignored:     LoadIgnored(),
-		prevPrs:     make(map[string]PullRequest),
+		prevPrs:     make(map[string]prs.PullRequest),
 		ticker:      *time.NewTicker(intvl),
 		updateIntvl: intvl,
 	}

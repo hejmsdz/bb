@@ -5,12 +5,13 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/hejmsdz/bb/prs"
 )
 
 type PrsLoading struct{}
 
 type PrsLoaded struct {
-	prs       []PullRequest
+	prs       []prs.PullRequest
 	updatedOn time.Time
 }
 
@@ -37,7 +38,7 @@ func UpdateVisiblePrsList(m *model) {
 		if !m.showIgnored && isIgnored {
 			continue
 		}
-		var prevPrPtr *PullRequest = nil
+		var prevPrPtr *prs.PullRequest = nil
 		if prevPr, ok := m.prevPrs[uid]; ok {
 			prevPrPtr = &prevPr
 		}

@@ -1,4 +1,4 @@
-package main
+package prs
 
 import (
 	"encoding/json"
@@ -10,51 +10,51 @@ import (
 )
 
 type BitbucketClient struct {
-	Config     AccountConfig
+	config     AccountConfig
 	apiUrl     string
 	httpClient *http.Client
 }
 
-type BbPullRequestsResponse struct {
-	Values []BbPullRequest `json:"values"`
+type bbPullRequestsResponse struct {
+	Values []bbPullRequest `json:"values"`
 }
 
-type BbUser struct {
+type bbUser struct {
 	DisplayName string `json:"display_name"`
 	AccountId   string `json:"account_id"`
 }
 
-type BbLink struct {
+type bbLink struct {
 	Href string `json:"href"`
 }
 
-type BbLinks struct {
-	Html BbLink `json:"html"`
+type bbLinks struct {
+	Html bbLink `json:"html"`
 }
 
-type BbCommit struct {
+type bbCommit struct {
 	Hash string `json:"hash"`
 }
 
-type BbSource struct {
-	Commit BbCommit `json:"commit"`
+type bbSource struct {
+	Commit bbCommit `json:"commit"`
 }
 
-type BbParticipant struct {
-	User  BbUser `json:"user"`
+type bbParticipant struct {
+	User  bbUser `json:"user"`
 	Role  string `json:"role"`
 	State string `json:"state"`
 }
 
-type BbPullRequest struct {
+type bbPullRequest struct {
 	Id           int             `json:"id"`
 	Title        string          `json:"title"`
 	UpdatedOn    string          `json:"updated_on"`
 	CommentCount int             `json:"comment_count"`
-	Author       BbUser          `json:"author"`
-	Source       BbSource        `json:"source"`
-	Links        BbLinks         `json:"links"`
-	Participants []BbParticipant `json:"participants"`
+	Author       bbUser          `json:"author"`
+	Source       bbSource        `json:"source"`
+	Links        bbLinks         `json:"links"`
+	Participants []bbParticipant `json:"participants"`
 }
 
 func CreateBitbucketClient(config AccountConfig) BitbucketClient {
@@ -70,11 +70,11 @@ func (c BitbucketClient) get(path string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.SetBasicAuth(c.Config.Username, c.Config.Password)
+	req.SetBasicAuth(c.config.Username, c.config.Password)
 	return c.httpClient.Do(req)
 }
 
-func processReviewers(participants []BbParticipant, pr *PullRequest, myUserId string) {
+func processReviewers(participants []bbParticipant, pr *PullRequest, myUserId string) {
 	for _, part := range participants {
 		if part.Role != "REVIEWER" {
 			continue
@@ -114,9 +114,9 @@ var prFieldsStr = strings.Join([]string{
 	"values.participants.user.account_id",
 }, ",")
 
-func (c BitbucketClient) GetPullRequests(repo string) []PullRequest {
+func (c BitbucketClient) getPullRequests(repo string) []PullRequest {
 	resp, _ := c.get(fmt.Sprintf("repositories/%s/pullrequests?state=OPEN&pagelen=50&fields=%s", repo, prFieldsStr))
-	var bbPrs *BbPullRequestsResponse
+	var bbPrs *bbPullRequestsResponse
 	json.NewDecoder(resp.Body).Decode(&bbPrs)
 	prs := make([]PullRequest, 0)
 
@@ -129,11 +129,11 @@ func (c BitbucketClient) GetPullRequests(repo string) []PullRequest {
 			LastCommit:    bbPr.Source.Commit.Hash,
 			CommentsCount: bbPr.CommentCount,
 			Url:           bbPr.Links.Html.Href,
-			IsMine:        bbPr.Author.AccountId == c.Config.UserId,
+			IsMine:        bbPr.Author.AccountId == c.config.UserId,
 		}
 
 		pr.UpdatedOn, _ = time.Parse("2006-01-02T15:04:05.000000-07:00", bbPr.UpdatedOn)
-		processReviewers(bbPr.Participants, &pr, c.Config.UserId)
+		processReviewers(bbPr.Participants, &pr, c.config.UserId)
 
 		if pr.IsMine || pr.AmIParticipating {
 			prs = append(prs, pr)
@@ -144,8 +144,8 @@ func (c BitbucketClient) GetPullRequests(repo string) []PullRequest {
 
 func (c BitbucketClient) GetAllPullRequests() []PullRequest {
 	allPrs := make([]PullRequest, 0)
-	for _, repo := range c.Config.Repositories {
-		repoPrs := c.GetPullRequests(repo)
+	for _, repo := range c.config.Repositories {
+		repoPrs := c.getPullRequests(repo)
 		allPrs = append(allPrs, repoPrs...)
 	}
 	sort.Slice(allPrs, func(i, j int) bool {

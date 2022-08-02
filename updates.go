@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/hejmsdz/bb/prs"
 )
 
-func FindUpdates(oldPr PullRequest, newPr PullRequest) []string {
+func FindUpdates(oldPr prs.PullRequest, newPr prs.PullRequest) []string {
 	updates := make([]string, 0)
 
 	if newPr.LastCommit != oldPr.LastCommit {
@@ -31,7 +33,7 @@ func FindUpdates(oldPr PullRequest, newPr PullRequest) []string {
 	return updates
 }
 
-func FindUpdatesStr(oldPr PullRequest, newPr PullRequest) string {
+func FindUpdatesStr(oldPr prs.PullRequest, newPr prs.PullRequest) string {
 	return fmt.Sprint(
 		"[",
 		strings.Join(FindUpdates(oldPr, newPr), ","),
