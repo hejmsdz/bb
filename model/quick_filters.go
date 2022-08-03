@@ -5,21 +5,21 @@ import (
 	"github.com/hejmsdz/bb/prs"
 )
 
-type MineOnlyModel struct {
+type QuickFiltersModel struct {
 	ShowMineOnly bool
 }
 
-func NewMineOnlyModel() MineOnlyModel {
-	return MineOnlyModel{
+func NewQuickFiltersModel() QuickFiltersModel {
+	return QuickFiltersModel{
 		ShowMineOnly: false,
 	}
 }
 
-func (m MineOnlyModel) IsHidden(pr prs.PullRequest) bool {
+func (m QuickFiltersModel) IsHidden(pr prs.PullRequest) bool {
 	return m.ShowMineOnly && !pr.IsMine
 }
 
-func (m *MineOnlyModel) ToggleShowMineOnly() tea.Cmd {
+func (m *QuickFiltersModel) ToggleShowMineOnly() tea.Cmd {
 	m.ShowMineOnly = !m.ShowMineOnly
 	return UpdateListView
 }

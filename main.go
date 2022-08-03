@@ -34,15 +34,15 @@ var (
 )
 
 type rootModel struct {
-	list        list.Model
-	prs         model.PrsModel
-	ignores     model.IgnoresModel
-	autoUpdate  model.AutoUpdateModel
-	whatChanged model.WhatChangedModel
-	mineOnly    model.MineOnlyModel
-	async       model.AsyncModel
-	localRepos  map[string]string
-	quitting    bool
+	list         list.Model
+	prs          model.PrsModel
+	ignores      model.IgnoresModel
+	autoUpdate   model.AutoUpdateModel
+	whatChanged  model.WhatChangedModel
+	quickFilters model.QuickFiltersModel
+	async        model.AsyncModel
+	localRepos   map[string]string
+	quitting     bool
 }
 
 func (m rootModel) Init() tea.Cmd {
@@ -91,7 +91,7 @@ func CopyToClipboard(str string, m rootModel) tea.Cmd {
 func UpdateListView(m *rootModel) {
 	prItems := make([]list.Item, 0)
 	for _, pr := range m.prs.Prs {
-		if m.ignores.IsHidden(pr) || m.mineOnly.IsHidden(pr) {
+		if m.ignores.IsHidden(pr) || m.quickFilters.IsHidden(pr) {
 			continue
 		}
 
@@ -139,8 +139,8 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 
 		case "m":
-			cmd := m.mineOnly.ToggleShowMineOnly()
-			if m.mineOnly.ShowMineOnly {
+			cmd := m.quickFilters.ToggleShowMineOnly()
+			if m.quickFilters.ShowMineOnly {
 				m.list.Title = "My pull requests"
 			} else {
 				m.list.Title = "Pull requests"
@@ -209,14 +209,14 @@ func main() {
 	l.Styles.HelpStyle = helpStyle
 
 	m := rootModel{
-		list:        l,
-		prs:         model.NewPrsModel(c),
-		ignores:     model.NewIgnoresModel(),
-		autoUpdate:  model.NewAutoUpdateModel(interval),
-		whatChanged: model.NewWhatChangedModel(),
-		mineOnly:    model.NewMineOnlyModel(),
-		async:       model.NewAsyncModel(),
-		localRepos:  config.LocalRepositoryPaths,
+		list:         l,
+		prs:          model.NewPrsModel(c),
+		ignores:      model.NewIgnoresModel(),
+		autoUpdate:   model.NewAutoUpdateModel(interval),
+		whatChanged:  model.NewWhatChangedModel(),
+		quickFilters: model.NewQuickFiltersModel(),
+		async:        model.NewAsyncModel(),
+		localRepos:   config.LocalRepositoryPaths,
 	}
 
 	if err := tea.NewProgram(m, tea.WithAltScreen()).Start(); err != nil {
