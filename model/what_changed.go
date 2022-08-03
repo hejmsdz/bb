@@ -20,7 +20,7 @@ func (m WhatChangedModel) WhatChanged(pr prs.PullRequest) []string {
 	if !exists {
 		return []string{}
 	}
-	return FindUpdates(prevPr, pr)
+	return findUpdates(prevPr, pr)
 }
 
 func (m WhatChangedModel) DismissChanges(pr prs.PullRequest) tea.Cmd {
@@ -42,7 +42,7 @@ func (m WhatChangedModel) Update(msg tea.Msg) (WhatChangedModel, tea.Cmd) {
 	return m, nil
 }
 
-func FindUpdates(oldPr prs.PullRequest, newPr prs.PullRequest) []string {
+func findUpdates(oldPr prs.PullRequest, newPr prs.PullRequest) []string {
 	updates := make([]string, 0)
 
 	if newPr.LastCommit != oldPr.LastCommit {

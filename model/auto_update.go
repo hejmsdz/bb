@@ -19,15 +19,15 @@ func NewAutoUpdateModel(interval time.Duration) AutoUpdateModel {
 }
 
 func (m AutoUpdateModel) Init() tea.Cmd {
-	return m.WaitForAutoUpdate
+	return m.waitForAutoUpdate
 }
 
-func (m AutoUpdateModel) WaitForAutoUpdate() tea.Msg {
+func (m AutoUpdateModel) waitForAutoUpdate() tea.Msg {
 	<-m.ticker.C
 	return MsgPrsLoading{}
 }
 
-func (m AutoUpdateModel) ScheduleAutoUpdate() tea.Msg {
+func (m AutoUpdateModel) scheduleAutoUpdate() tea.Msg {
 	m.ticker.Reset(m.interval)
 	return nil
 }
@@ -35,7 +35,7 @@ func (m AutoUpdateModel) ScheduleAutoUpdate() tea.Msg {
 func (m AutoUpdateModel) Update(msg tea.Msg) (AutoUpdateModel, tea.Cmd) {
 	switch msg.(type) {
 	case MsgPrsLoaded:
-		return m, tea.Batch(m.ScheduleAutoUpdate, m.WaitForAutoUpdate)
+		return m, tea.Batch(m.scheduleAutoUpdate, m.waitForAutoUpdate)
 	}
 	return m, nil
 }

@@ -8,7 +8,7 @@ type AsyncModel struct {
 	channel chan tea.Cmd
 }
 
-type MsgCmdReceived struct {
+type msgCmdReceived struct {
 	cmd tea.Cmd
 }
 
@@ -24,7 +24,7 @@ func (m AsyncModel) Init() tea.Cmd {
 
 func (m AsyncModel) receive() tea.Msg {
 	cmd := <-m.channel
-	return MsgCmdReceived{cmd}
+	return msgCmdReceived{cmd}
 }
 
 func (m AsyncModel) GetChannel() chan tea.Cmd {
@@ -33,7 +33,7 @@ func (m AsyncModel) GetChannel() chan tea.Cmd {
 
 func (m AsyncModel) Update(msg tea.Msg) (AsyncModel, tea.Cmd) {
 	switch msg := msg.(type) {
-	case MsgCmdReceived:
+	case msgCmdReceived:
 		return m, tea.Batch(msg.cmd, m.receive)
 	}
 	return m, nil
