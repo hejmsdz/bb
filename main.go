@@ -175,7 +175,8 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, PullOrigin(sel.Pr, m)
 
 		case "enter":
-			return m, OpenBrowser(sel.Pr.Url)
+			cmd := m.whatChanged.DismissChanges(sel.Pr)
+			return m, tea.Batch(OpenBrowser(sel.Pr.Url), cmd)
 		}
 	}
 
