@@ -21,57 +21,58 @@ func CheckLocalDir(pr prs.PullRequest, m rootModel) (string, tea.Cmd) {
 	return localDir, nil
 }
 
-func RunGitCommand(localDir string, args ...string) (string, error) {
+func RunGitCommand(localDir string, args ...string) (string, bool) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = localDir
 	outBytes, err := cmd.CombinedOutput()
 	out := strings.TrimSpace(string(outBytes))
-
-	return out, err
+	return out, err == nil
 }
 
 func Checkout(pr prs.PullRequest, m rootModel) tea.Cmd {
-	localDir, teaCmd := CheckLocalDir(pr, m)
-	if localDir == "" {
-		return teaCmd
+	return func() tea.Msg {
+		ch := m.async.GetChannel()
+		localDir, teaCmd := CheckLocalDir(pr, m)
+		if localDir == "" {
+			ch <- teaCmd
+			return nil
+		}
+		out, ok := RunGitCommand(localDir, "checkout", pr.Branch)
+		ch <- NewToast(out, ok)
+		return nil
 	}
-	out, err := RunGitCommand(localDir, "checkout", pr.Branch)
-	return NewToast(out, err == nil)
 }
 
 func PullOrigin(pr prs.PullRequest, m rootModel) tea.Cmd {
-	localDir, teaCmd := CheckLocalDir(pr, m)
-	var (
-		out string
-		err error
-	)
-	if localDir == "" {
-		return teaCmd
-	}
-	out, _ = RunGitCommand(localDir, "status", "--short")
-	isDirty := out != ""
-	if isDirty {
-		RunGitCommand(localDir, "stash")
-	}
-	out, err = RunGitCommand(localDir, "checkout", pr.Branch)
-	if err != nil {
-		return NewErrorToast(out)
-	}
-	out, err = RunGitCommand(localDir, "pull", "origin", pr.TargetBranch, "--no-edit")
-	if err != nil {
-		return NewErrorToast(out)
-	}
-	out, err = RunGitCommand(localDir, "push", "--no-verify")
-	if err != nil {
-		return NewErrorToast(out)
-	}
-	out, err = RunGitCommand(localDir, "checkout", "-")
-	if err != nil {
-		return NewErrorToast(out)
-	}
-	if isDirty {
-		_, err = RunGitCommand(localDir, "stash", "pop")
-	}
+	return func() tea.Msg {
+		localDir, teaCmd := CheckLocalDir(pr, m)
+		ch := m.async.GetChannel()
+		if localDir == "" {
+			ch <- teaCmd
+			return nil
+		}
+		changes, _ := RunGitCommand(localDir, "status", "--short")
+		if changes != "" {
+			RunGitCommand(localDir, "stash")
+			defer RunGitCommand(localDir, "stash", "pop")
+		}
 
-	return NewToast("Pulled & pushed", err == nil)
+		gitCommands := [][]string{
+			{"checkout", pr.Branch},
+			{"pull", "origin", pr.TargetBranch, "--no-edit"},
+			{"push", "--no-verify"},
+			{"checkout", "-"},
+		}
+
+		for _, args := range gitCommands {
+			out, ok := RunGitCommand(localDir, args...)
+			ch <- NewToast(out, ok)
+			if !ok {
+				return nil
+			}
+		}
+
+		ch <- NewToast("Pulled & pushed", true)
+		return nil
+	}
 }

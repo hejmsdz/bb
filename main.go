@@ -40,6 +40,7 @@ type rootModel struct {
 	autoUpdate  model.AutoUpdateModel
 	whatChanged model.WhatChangedModel
 	mineOnly    model.MineOnlyModel
+	async       model.AsyncModel
 	localRepos  map[string]string
 	quitting    bool
 }
@@ -49,6 +50,7 @@ func (m rootModel) Init() tea.Cmd {
 		m.prs.Init(),
 		m.ignores.Init(),
 		m.autoUpdate.Init(),
+		m.async.Init(),
 	)
 }
 
@@ -177,13 +179,14 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	var listCmd, prsCmd, autoUpdateCmd, whatChangedCmd tea.Cmd
+	var listCmd, prsCmd, autoUpdateCmd, whatChangedCmd, toastStreamCmd tea.Cmd
 	m.list, listCmd = m.list.Update(msg)
 	m.prs, prsCmd = m.prs.Update(msg)
 	m.autoUpdate, autoUpdateCmd = m.autoUpdate.Update(msg)
 	m.whatChanged, whatChangedCmd = m.whatChanged.Update(msg)
+	m.async, toastStreamCmd = m.async.Update(msg)
 
-	return m, tea.Batch(listCmd, prsCmd, autoUpdateCmd, whatChangedCmd)
+	return m, tea.Batch(listCmd, prsCmd, autoUpdateCmd, whatChangedCmd, toastStreamCmd)
 }
 
 func (m rootModel) View() string {
@@ -211,6 +214,7 @@ func main() {
 		autoUpdate:  model.NewAutoUpdateModel(interval),
 		whatChanged: model.NewWhatChangedModel(),
 		mineOnly:    model.NewMineOnlyModel(),
+		async:       model.NewAsyncModel(),
 		localRepos:  config.LocalRepositoryPaths,
 	}
 
