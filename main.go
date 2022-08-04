@@ -196,7 +196,12 @@ func (m rootModel) View() string {
 
 func main() {
 	config := ReadConfig()
-	c := prs.CreateBitbucketClient(config.Bitbucket)
+	c, ok := prs.CreateBitbucketClient(config.Bitbucket)
+	if !ok {
+		fmt.Println(errorToastStyle.Render("Could not connect to Bitbucket API."))
+		fmt.Println("Make sure that your credentials are valid and have the permissions `account` and `pullrequest`.")
+		os.Exit(1)
+	}
 	interval := time.Duration(config.UpdateIntervalMinutes) * time.Minute
 
 	const defaultWidth = 20

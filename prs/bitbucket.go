@@ -12,6 +12,7 @@ import (
 type BitbucketClient struct {
 	config     AccountConfig
 	apiUrl     string
+	userId     string
 	httpClient *http.Client
 }
 
@@ -63,12 +64,19 @@ type bbPullRequest struct {
 	Participants []bbParticipant `json:"participants"`
 }
 
-func CreateBitbucketClient(config AccountConfig) BitbucketClient {
-	return BitbucketClient{
+func CreateBitbucketClient(config AccountConfig) (BitbucketClient, bool) {
+	c := BitbucketClient{
 		config,
 		"https://api.bitbucket.org/2.0/",
+		"",
 		&http.Client{},
 	}
+	user := c.getUser()
+	if user != nil {
+		c.userId = user.AccountId
+	}
+
+	return c, user != nil
 }
 
 func (c BitbucketClient) get(path string) (*http.Response, error) {
@@ -78,6 +86,16 @@ func (c BitbucketClient) get(path string) (*http.Response, error) {
 	}
 	req.SetBasicAuth(c.config.Username, c.config.Password)
 	return c.httpClient.Do(req)
+}
+
+func (c BitbucketClient) getUser() *bbUser {
+	resp, _ := c.get("user")
+	if resp.StatusCode != 200 {
+		return nil
+	}
+	var user *bbUser
+	json.NewDecoder(resp.Body).Decode(&user)
+	return user
 }
 
 func processReviewers(participants []bbParticipant, pr *PullRequest, myUserId string) {
@@ -139,11 +157,11 @@ func (c BitbucketClient) getPullRequests(repo string) []PullRequest {
 			TargetBranch:  bbPr.Destination.Branch.Name,
 			CommentsCount: bbPr.CommentCount,
 			Url:           bbPr.Links.Html.Href,
-			IsMine:        bbPr.Author.AccountId == c.config.UserId,
+			IsMine:        bbPr.Author.AccountId == c.userId,
 		}
 
 		pr.UpdatedOn, _ = time.Parse("2006-01-02T15:04:05.000000-07:00", bbPr.UpdatedOn)
-		processReviewers(bbPr.Participants, &pr, c.config.UserId)
+		processReviewers(bbPr.Participants, &pr, c.userId)
 
 		if pr.IsMine || pr.AmIParticipating {
 			prs = append(prs, pr)
