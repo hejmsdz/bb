@@ -195,11 +195,23 @@ func (m rootModel) View() string {
 }
 
 func main() {
-	config := ReadConfig()
+	config, ok := ReadConfig()
+	if !ok {
+		CreateSampleConfig()
+		fmt.Println("Welcome to " + infoToastStyle.Render("bb") + ", a command-line pull requests dashboard!")
+		fmt.Println()
+		fmt.Println("To get started, please open the following file:")
+		fmt.Println(infoToastStyle.Render(configFilePath))
+		fmt.Println("and complete your configuration.")
+		os.Exit(1)
+	}
 	c, ok := prs.CreateBitbucketClient(config.Bitbucket)
 	if !ok {
 		fmt.Println(errorToastStyle.Render("Could not connect to Bitbucket API."))
-		fmt.Println("Make sure that your credentials are valid and have the permissions `account` and `pullrequest`.")
+		fmt.Println("Make sure that your credentials configured in the file:")
+		fmt.Println(infoToastStyle.Render(configFilePath))
+		fmt.Println("are valid and have the permissions " + successToastStyle.Render("account") + " and " + successToastStyle.Render("pullrequest") + ".")
+
 		os.Exit(1)
 	}
 	interval := time.Duration(config.UpdateIntervalMinutes) * time.Minute
