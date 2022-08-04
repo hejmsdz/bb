@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -34,12 +35,12 @@ var (
 )
 
 type rootModel struct {
-	list         list.Model
+	Ignores      model.IgnoresModel
+	WhatChanged  model.WhatChangedModel
+	QuickFilters model.QuickFiltersModel
 	prs          model.PrsModel
-	ignores      model.IgnoresModel
+	list         list.Model
 	autoUpdate   model.AutoUpdateModel
-	whatChanged  model.WhatChangedModel
-	quickFilters model.QuickFiltersModel
 	async        model.AsyncModel
 	localRepos   map[string]string
 	quitting     bool
@@ -48,10 +49,24 @@ type rootModel struct {
 func (m rootModel) Init() tea.Cmd {
 	return tea.Batch(
 		m.prs.Init(),
-		m.ignores.Init(),
 		m.autoUpdate.Init(),
 		m.async.Init(),
 	)
+}
+
+func (m rootModel) dump() tea.Msg {
+	file, _ := json.MarshalIndent(m, "", " ")
+	os.WriteFile(stateFilePath, file, 0600)
+	return nil
+}
+
+func (m *rootModel) load() bool {
+	data, err := os.ReadFile(stateFilePath)
+	if err != nil {
+		return false
+	}
+	err = json.Unmarshal(data, &m)
+	return err != nil
 }
 
 func NewInfoToast(text string) tea.Cmd {
@@ -91,14 +106,14 @@ func CopyToClipboard(str string, m rootModel) tea.Cmd {
 func UpdateListView(m *rootModel) {
 	prItems := make([]list.Item, 0)
 	for _, pr := range m.prs.Prs {
-		if m.ignores.IsHidden(pr) || m.quickFilters.IsHidden(pr) {
+		if m.Ignores.IsHidden(pr) || m.QuickFilters.IsHidden(pr) {
 			continue
 		}
 
 		prItems = append(prItems, PullRequestItem{
 			pr,
-			m.whatChanged.WhatChanged(pr),
-			m.ignores.IsIgnored(pr),
+			m.WhatChanged.WhatChanged(pr),
+			m.Ignores.IsIgnored(pr),
 		})
 	}
 	m.list.SetItems(prItems)
@@ -129,18 +144,18 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch keypress := msg.String(); keypress {
 		case "ctrl+c":
 			m.quitting = true
-			return m, tea.Quit
+			return m, tea.Batch(m.dump, tea.Quit)
 
 		case "r":
 			return m, m.prs.StartLoadingPrs
 
 		case ".":
-			cmd := m.ignores.ToggleShowIgnored()
+			cmd := m.Ignores.ToggleShowIgnored()
 			return m, cmd
 
 		case "m":
-			cmd := m.quickFilters.ToggleShowMineOnly()
-			if m.quickFilters.ShowMineOnly {
+			cmd := m.QuickFilters.ToggleShowMineOnly()
+			if m.QuickFilters.ShowMineOnly {
 				m.list.Title = "My pull requests"
 			} else {
 				m.list.Title = "Pull requests"
@@ -155,11 +170,11 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch keypress := msg.String(); keypress {
 		case "i":
-			cmd := m.ignores.ToggleIgnore(sel.Pr)
+			cmd := m.Ignores.ToggleIgnore(sel.Pr)
 			return m, cmd
 
 		case "d":
-			cmd := m.whatChanged.DismissChanges(sel.Pr)
+			cmd := m.WhatChanged.DismissChanges(sel.Pr)
 			return m, cmd
 
 		case "u":
@@ -175,7 +190,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, PullOrigin(sel.Pr, m)
 
 		case "enter":
-			cmd := m.whatChanged.DismissChanges(sel.Pr)
+			cmd := m.WhatChanged.DismissChanges(sel.Pr)
 			return m, tea.Batch(OpenBrowser(sel.Pr.Url), cmd)
 		}
 	}
@@ -184,7 +199,7 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.list, listCmd = m.list.Update(msg)
 	m.prs, prsCmd = m.prs.Update(msg)
 	m.autoUpdate, autoUpdateCmd = m.autoUpdate.Update(msg)
-	m.whatChanged, whatChangedCmd = m.whatChanged.Update(msg)
+	m.WhatChanged, whatChangedCmd = m.WhatChanged.Update(msg)
 	m.async, toastStreamCmd = m.async.Update(msg)
 
 	return m, tea.Batch(listCmd, prsCmd, autoUpdateCmd, whatChangedCmd, toastStreamCmd)
@@ -228,16 +243,20 @@ func main() {
 	m := rootModel{
 		list:         l,
 		prs:          model.NewPrsModel(c),
-		ignores:      model.NewIgnoresModel(),
+		Ignores:      model.NewIgnoresModel(),
 		autoUpdate:   model.NewAutoUpdateModel(interval),
-		whatChanged:  model.NewWhatChangedModel(),
-		quickFilters: model.NewQuickFiltersModel(),
+		WhatChanged:  model.NewWhatChangedModel(),
+		QuickFilters: model.NewQuickFiltersModel(),
 		async:        model.NewAsyncModel(),
 		localRepos:   config.LocalRepositoryPaths,
 	}
+
+	m.load()
+	defer m.dump()
 
 	if err := tea.NewProgram(m, tea.WithAltScreen()).Start(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}
+
 }

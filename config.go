@@ -17,6 +17,7 @@ type Config struct {
 
 var configDirPath string = configdir.LocalConfig("bb")
 var configFilePath string = filepath.Join(configDirPath, "/config.toml")
+var stateFilePath string = filepath.Join(configDirPath, "/state.json")
 
 func ReadConfig() (Config, bool) {
 	configdir.MakePath(configDirPath)

@@ -6,17 +6,17 @@ import (
 )
 
 type WhatChangedModel struct {
-	prevPrs map[prs.Uid]prs.PullRequest
+	PrevPrs map[prs.Uid]prs.PullRequest
 }
 
 func NewWhatChangedModel() WhatChangedModel {
 	return WhatChangedModel{
-		prevPrs: make(map[prs.Uid]prs.PullRequest),
+		PrevPrs: make(map[prs.Uid]prs.PullRequest),
 	}
 }
 
 func (m WhatChangedModel) WhatChanged(pr prs.PullRequest) []string {
-	prevPr, exists := m.prevPrs[pr.Uid()]
+	prevPr, exists := m.PrevPrs[pr.Uid()]
 	if !exists {
 		return []string{}
 	}
@@ -25,7 +25,7 @@ func (m WhatChangedModel) WhatChanged(pr prs.PullRequest) []string {
 
 func (m WhatChangedModel) DismissChanges(pr prs.PullRequest) tea.Cmd {
 	uid := pr.Uid()
-	m.prevPrs[uid] = pr
+	m.PrevPrs[uid] = pr
 	return UpdateListView
 }
 
@@ -33,9 +33,9 @@ func (m WhatChangedModel) Update(msg tea.Msg) (WhatChangedModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case MsgPrsLoaded:
 		for _, oldPr := range msg.prs {
-			_, isCached := m.prevPrs[oldPr.Uid()]
+			_, isCached := m.PrevPrs[oldPr.Uid()]
 			if !isCached {
-				m.prevPrs[oldPr.Uid()] = oldPr
+				m.PrevPrs[oldPr.Uid()] = oldPr
 			}
 		}
 	}
