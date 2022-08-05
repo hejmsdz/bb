@@ -41,7 +41,7 @@ UpdateIntervalMinutes = 5
 [Bitbucket]
 # Your Bitbucket username.
 # If you don't remember it because you log in via an identity provider,
-# you can check it here: https://bitbucket.org/account/settings/username/change
+# you can check it here: https://bitbucket.org/account/settings/username/change/
 Username = ""
 
 # An app password with permissions to read your user account data and pull requests.
